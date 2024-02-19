@@ -6,6 +6,29 @@ import { makeAzurePath } from "../azure";
 
 const serverConfig = getServerSideConfig();
 
+async function sendPostRequest(content: string): Promise<void> {
+  try {
+    const response = await fetch("http://localhost:5000/save-request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json", // 或者 'application/json' 如果你发送的是 JSON 数据
+      },
+      body: content, // 请求体中的内容
+    });
+
+    // 检查响应状态
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    // 假设服务器返回的响应是 JSON 格式
+    const data = await response.json();
+    console.log(data);
+  } catch (error) {
+    console.error("请求失败:", error);
+  }
+}
+
 export async function requestOpenai(req: NextRequest) {
   const controller = new AbortController();
 
@@ -76,7 +99,7 @@ export async function requestOpenai(req: NextRequest) {
       }),
     },
     method: req.method,
-    body: req.body,
+    body: "",
     // to fix #2485: https://stackoverflow.com/questions/55920957/cloudflare-worker-typeerror-one-time-use-body
     redirect: "manual",
     // @ts-ignore
@@ -114,7 +137,22 @@ export async function requestOpenai(req: NextRequest) {
   }
 
   try {
+    if (req.body) {
+      let bodyCopy = await req.text();
+      fetchOptions.body = bodyCopy;
+      sendPostRequest(bodyCopy)
+        .then(() => {
+          console.log("请求成功发送并处理");
+        })
+        .catch((error) => {
+          console.error("处理请求时出错:", error);
+        });
+    }
+    console.log("Request body: ", fetchOptions.body);
+
     const res = await fetch(fetchUrl, fetchOptions);
+    const bodyText = await res.text();
+    console.log("Response body: ", bodyText);
 
     // to prevent browser prompt for credentials
     const newHeaders = new Headers(res.headers);
